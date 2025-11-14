@@ -1,0 +1,46 @@
+# Optimized Clash YAML Configuration
+
+# Port settings
+port: 7890
+socks-port: 7891
+mixed-port: 7892
+
+# Log settings
+log-level: info
+
+# DNS settings
+dns:
+  enable: true
+  enhanced-mode: redir-host
+  ipv6: false
+  servers:
+    - https://dns.google/dns-query
+    - https://1.1.1.1/dns-query
+
+# Proxy settings
+proxies:
+  - name: "Proxy-1"
+    type: ss
+    server: example.com
+    port: 8388
+    cipher: "aes-128-gcm"
+    password: "password"
+    tls: true
+  - name: "Proxy-2"
+    type: http
+    server: example.org
+    port: 80
+    password: "password"
+    udp: true
+
+# Rules settings
+rules:
+  - DOMAIN-SUFFIX, example.com, Proxy-1
+  - DOMAIN-KEYWORD, example, Proxy-1
+  - GEOIP, VN, Proxy-2
+  - MATCH, Proxy-1
+
+# Additional configurations
+setup:
+  dynamic-routing: true
+  rule-protection: true
