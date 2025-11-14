@@ -1,0 +1,170 @@
+# =============================================
+# Clash 配置文件（最终版本优化）
+# 日期：2025-11-14
+# 描述：支持动态分组、多机场、健康检查自动化，优化流量管理与透明代理
+# =============================================
+
+# ========= 基础配置 =========
+mixed-port: 7890
+socks-port: 7891
+allow-lan: true
+mode: rule                 # 按规则模式分流
+log-level: info
+external-controller: 0.0.0.0:9090
+secret: "secure-password"  # 面板访问密码
+
+# ========= DNS 配置 =========
+dns:
+  enable: true
+  enhanced-mode: fake-ip   # 防 DNS 污染，拦截解析
+  fake-ip-range: 198.18.0.1/16
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+    - https://dns.cloudflare.com/dns-query
+    - tls://8.8.8.8
+    - tls://1.1.1.1
+  fallback:
+    - https://dns.google/dns-query    # 动态 Fallback DNS，减少污染风险
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+
+# ========= 节点配置 =========
+proxies:
+  - name: "🇨🇳 中国节点"
+    type: vmess
+    server: your-china-server.example.com
+    port: 443
+    uuid: your-uuid
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: /ws
+      headers:
+        Host: host.your-china-server.com
+
+  - name: "🌍 海外节点"
+    type: ss
+    server: your-oversea-server.example.com
+    port: 8388
+    cipher: aes-128-gcm
+    password: your-oversea-password
+    plugin: v2ray-plugin
+    plugin-opts:
+      mode: websocket
+      tls: true
+
+  - name: "🇭🇰 香港节点（兜底）"
+    type: trojan
+    server: your-hk-server.example.com
+    port: 443
+    password: your-hk-password
+    sni: host.your-hk-server.com
+    udp: true
+
+# ========= 动态代理分组 =========
+proxy-groups:
+  - name: "🎬 流媒体分组"
+    type: url-test
+    proxies:
+      - 🌍 海外节点
+      - 🇭🇰 香港节点（兜底）
+    interval: 300
+    tolerance: 100
+    lazy: true                            # 延迟测试仅在被访问时触发
+
+  - name: "📱 国内分组"
+    type: fallback
+    proxies:
+      - 🇨🇳 中国节点
+      - 🇭🇰 香港节点（兜底）
+    health-check:
+      enable: true
+      url: https://www.google.com/generate_204
+      interval: 600
+
+  - name: "动态延迟测速组"
+    type: url-test
+    proxies:
+      - 🌍 海外节点
+      - 🇨🇳 中国节点
+      - 🇭🇰 香港节点（兜底）
+    interval: 300
+    tolerance: 50
+
+  - name: "全局优选分组"
+    type: fallback                      # 优先健康分组，高效兜底
+    proxies:
+      - 动态延迟测速组
+      - 📱 国内分组
+
+# ========= 流量规则分配 =========
+rules-providers:
+  reject:
+    type: http
+    behavior: domain
+    url: https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/reject.txt
+    path: ./rules/reject.yaml
+    interval: 86400
+
+  china:
+    type: http
+    behavior: domain
+    url: https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/direct.txt
+    path: ./rules/china.yaml
+    interval: 86400
+
+  media:
+    type: http
+    behavior: domain
+    url: https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/streaming.txt
+    path: ./rules/media.yaml
+    interval: 86400
+
+  game:
+    type: http
+    behavior: domain
+    url: https://example.com/rules/game.yaml
+    path: ./rules/game.yaml
+    interval: 86400
+
+rules:
+  - RULE-SET,reject,REJECT
+  - RULE-SET,china,📱 国内分组
+  - RULE-SET,media,🎬 流媒体分组
+  - RULE-SET,game,DIRECT
+  - DOMAIN-SUFFIX,example.com,DIRECT           # 针对特定流量规则
+  - GEOIP,CN,📱 国内分组
+  - MATCH,全局优选分组
+
+# ========= 设备流量管理 =========
+rules:
+  - SRC-IP-CIDR,192.168.1.100/32,🎬 流媒体分组  # 电视机
+  - SRC-IP-CIDR,192.168.1.101/32,动态延迟测速组 # 游戏机
+  - SRC-IP-CIDR,192.168.1.102/32,📱 国内分组    # 手机
+
+# ========= TUN 模式 =========
+tun:
+  enable: true
+  stack: system
+  strict-route: true
+  dns-hijack:
+    - any:53
+  mtu: 1480
+
+# ========= 流量嗅探 =========
+sniffer:
+  enable: true
+  force-domain:
+    - +.youtube.com
+    - +.spotify.com
+    - +.twitch.tv
+
+# ========= 用户偏好存储 =========
+profile:
+  store-selected: true
+  restore-selected: true
+  store-fake-ip: true
