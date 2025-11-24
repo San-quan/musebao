@@ -1,0 +1,28 @@
+# .github/workflows/subconverter-update.yml
+name: Subconverter Auto Update
+
+on:
+  schedule:
+    - cron: '0 19 * * *'  # 北京时间凌晨3点 (UTC+8)
+  workflow_dispatch:       # 手动触发
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check version and update
+        run: |
+          # 检查版本
+          CURRENT_VER=$(curl -s "http://47.243.27.69:25500/version" | grep -oP 'subconverter v\K[^\s]+' || echo "unknown")
+          LATEST_VER=$(curl -s "https://api.github.com/repos/tindy2013/subconverter/releases/latest" | jq -r .tag_name | sed 's/v//')
+          
+          echo "Current: $CURRENT_VER, Latest: $LATEST_VER"
+          
+          if [ "$CURRENT_VER" != "$LATEST_VER" ]; then
+            echo "Update required!"
+            # 这里可以发送通知或调用更新API
+            curl -X POST "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage" \
+              -d "chat_id=${{ secrets.TG_CHAT_ID }}&text=🚀 Subconverter更新可用: $CURRENT_VER → $LATEST_VER"
+          else
+            echo "Already up to date!"
+          fi
